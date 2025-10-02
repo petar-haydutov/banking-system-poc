@@ -14,17 +14,20 @@ public class AccountServiceImpl implements AccountService {
 
     @Override
     public void clear() {
-        //do nothing for now
+        accounts.clear();
     }
 
     @Override
     public void createAccount(Account account) {
-        //do nothing for now
+        accounts.add(account);
     }
 
     @Override
     public Account getAccount(long id) {
-        return null;
+        return accounts.stream()
+                .filter(account -> account.getAccountKey() == AccountKey.valueOf(id))
+                .findAny()
+                .orElse(null);
     }
 
     @Override
