@@ -6,7 +6,7 @@ package com.yotpo.account;
  * <p>
  * NOTE: we suspect that later {@link #accountId} is not going to be uniquely identifying an account,
  * as we might add human-readable account representation and some clearing codes for partners.
- * */
+ */
 public class AccountKey {
     private final long accountId;
 
@@ -14,7 +14,29 @@ public class AccountKey {
         this.accountId = accountId;
     }
 
+    public long getAccountId() {
+        return accountId;
+    }
+
     public static AccountKey valueOf(long accountId) {
         return new AccountKey(accountId);
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        AccountKey that = (AccountKey) o;
+        return accountId == that.accountId;
+    }
+
+    @Override
+    public int hashCode() {
+        return Long.hashCode(accountId);
+    }
+
+    @Override
+    public String toString() {
+        return "AccountKey{accountId=" + accountId + '}';
     }
 }

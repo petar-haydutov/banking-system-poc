@@ -1,6 +1,7 @@
 package com.yotpo.service;
 
 import com.yotpo.account.Account;
+import com.yotpo.exception.AccountAlreadyExistsException;
 
 public interface AccountService {
 
@@ -14,7 +15,8 @@ public interface AccountService {
      * Creates a new account
      *
      * @param account account entity to add or update
-     * @throws IllegalArgumentException if account is already present
+     * @throws AccountAlreadyExistsException if account is already present
+     * @throws IllegalArgumentException if account data is invalid
      * */
     void createAccount(Account account);
 
