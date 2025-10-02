@@ -3,6 +3,9 @@ package com.yotpo.service;
 import com.yotpo.account.Account;
 import com.yotpo.account.AccountKey;
 import com.yotpo.exception.AccountAlreadyExistsException;
+import com.yotpo.exception.AccountNotFoundException;
+import com.yotpo.exception.InsufficientBalanceException;
+import com.yotpo.exception.InvalidTransferException;
 import org.springframework.stereotype.Service;
 
 import java.util.concurrent.ConcurrentHashMap;
@@ -46,6 +49,37 @@ public class AccountServiceImpl implements AccountService {
 
     @Override
     public void transfer(Account source, Account target, double amount) {
-        //do nothing for now
+        validateTransferRequest(source, target, amount);
+
+        Account sourceAccount = getAccount(source.getAccountKey().getAccountId());
+        if (sourceAccount == null) {
+            throw new AccountNotFoundException(source.getAccountKey());
+        }
+
+        if (sourceAccount.getBalance() < amount) {
+            throw new InsufficientBalanceException(source.getAccountKey());
+        }
+
+        Account targetAccount = getAccount(target.getAccountKey().getAccountId());
+        if (targetAccount == null) {
+            throw new AccountNotFoundException(target.getAccountKey());
+        }
+
+        sourceAccount.setBalance(sourceAccount.getBalance() - amount);
+        targetAccount.setBalance(targetAccount.getBalance() + amount);
+    }
+
+    private void validateTransferRequest(Account source, Account target, Double amount) {
+        if (source == null || target == null) {
+            throw new InvalidTransferException("Source and target accounts must not be null");
+        }
+
+        if (source.equals(target)) {
+            throw new InvalidTransferException("Cannot transfer to the same account");
+        }
+
+        if (amount == null || amount <= 0) {
+            throw new InvalidTransferException("Transfer amount must be positive");
+        }
     }
 }

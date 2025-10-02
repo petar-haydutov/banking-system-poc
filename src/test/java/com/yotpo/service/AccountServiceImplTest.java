@@ -3,8 +3,13 @@ package com.yotpo.service;
 import com.yotpo.account.Account;
 import com.yotpo.account.AccountKey;
 import com.yotpo.exception.AccountAlreadyExistsException;
+import com.yotpo.exception.AccountNotFoundException;
+import com.yotpo.exception.InsufficientBalanceException;
+import com.yotpo.exception.InvalidTransferException;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+
 import static org.junit.jupiter.api.Assertions.*;
 
 public class AccountServiceImplTest {
@@ -14,6 +19,11 @@ public class AccountServiceImplTest {
     @BeforeEach
     public void setUp() {
         accountService = new AccountServiceImpl();
+    }
+
+    @AfterEach
+    public void cleanUp() {
+        accountService.clear();
     }
 
     @Test
@@ -143,5 +153,200 @@ public class AccountServiceImplTest {
         assertEquals(account3.getFirstName(), accountService.getAccount(3L).getFirstName());
         assertEquals(account3.getLastName(), accountService.getAccount(3L).getLastName());
         assertEquals(account3.getBalance(), accountService.getAccount(3L).getBalance());
+    }
+
+    @Test
+    void testSuccessfulTransfer() {
+        // Given: valid source and target accounts with valid balances
+        AccountKey sourceKey = AccountKey.valueOf(1);
+        AccountKey targetKey = AccountKey.valueOf(2);
+        Account source = new Account(sourceKey, "Pesho", "P", 1000.0);
+        Account target = new Account(targetKey, "Misho", "M", 500.0);
+
+        accountService.createAccount(source);
+        accountService.createAccount(target);
+
+        // When: a transfer occurs
+        accountService.transfer(source, target, 200.0);
+
+        // Then: both balances should be updated
+        assertEquals(800.0, accountService.getAccount(1).getBalance(), 0.001);
+        assertEquals(700.0, accountService.getAccount(2).getBalance(), 0.001);
+    }
+
+    @Test
+    void testTransferInsufficientBalance() {
+        // Given source account has insufficient balance
+        AccountKey sourceKey = AccountKey.valueOf(1);
+        AccountKey targetKey = AccountKey.valueOf(2);
+        Account source = new Account(sourceKey, "Gosho", "G", 100.0);
+        Account target = new Account(targetKey, "Misho", "M", 500.0);
+
+        accountService.createAccount(source);
+        accountService.createAccount(target);
+
+        // When trying to transfer more than available balance
+        // Then should throw InsufficientBalanceException
+        assertThrows(InsufficientBalanceException.class, () ->
+                accountService.transfer(source, target, 200.0)
+        );
+
+        // And balances should remain unchanged
+        assertEquals(100.0, accountService.getAccount(1).getBalance(), 0.001);
+        assertEquals(500.0, accountService.getAccount(2).getBalance(), 0.001);
+    }
+
+    @Test
+    void testTransferToSameAccount() {
+        // Given a single account
+        AccountKey accountKey = AccountKey.valueOf(1);
+        Account acc = new Account(accountKey, "Gosho", "G", 5500.0);
+        accountService.createAccount(acc);
+
+        // When attempting to transfer to the same account
+        // Then should throw InvalidTransferException
+        assertThrows(InvalidTransferException.class, () ->
+                accountService.transfer(acc, acc, 100.0)
+        );
+
+        // And balance should remain unchanged
+        assertEquals(5500.0, accountService.getAccount(1).getBalance(), 0.001);
+    }
+
+    @Test
+    void testTransferNegativeAmount() {
+        // Given two valid accounts
+        AccountKey sourceKey = AccountKey.valueOf(1);
+        AccountKey targetKey = AccountKey.valueOf(2);
+        Account source = new Account(sourceKey, "Gosho", "G", 1000.0);
+        Account target = new Account(targetKey, "Misho", "M", 2000.0);
+
+        accountService.createAccount(source);
+        accountService.createAccount(target);
+
+        // When attempting to transfer negative amount
+        // Then should throw InvalidTransferException
+        assertThrows(InvalidTransferException.class, () ->
+                accountService.transfer(source, target, -100.0)
+        );
+
+        // And balances should remain unchanged
+        assertEquals(1000.0, accountService.getAccount(1).getBalance(), 0.001);
+        assertEquals(2000.0, accountService.getAccount(2).getBalance(), 0.001);
+    }
+
+    @Test
+    void testTransferZeroAmount() {
+        // Given two valid accounts
+        AccountKey source = AccountKey.valueOf(1);
+        AccountKey target = AccountKey.valueOf(2);
+        Account acc1 = new Account(source, "Gosho", "G", 1000.0);
+        Account acc2 = new Account(target, "Misho", "M", 2000.0);
+
+        accountService.createAccount(acc1);
+        accountService.createAccount(acc2);
+
+        // When attempting to transfer a zero amount
+        // Then should throw InvalidTransferException
+        assertThrows(InvalidTransferException.class, () ->
+                accountService.transfer(acc1, acc2, 0.0)
+        );
+
+        // And balances should remain unchanged
+        assertEquals(1000.0, accountService.getAccount(1).getBalance(), 0.001);
+        assertEquals(2000.0, accountService.getAccount(2).getBalance(), 0.001);
+    }
+
+    @Test
+    void testTransferSourceNotFound() {
+        // Given only target account exists
+        AccountKey sourceKey = AccountKey.valueOf(1);
+        AccountKey targetKey = AccountKey.valueOf(2);
+        Account source = new Account(sourceKey, "Gosho", "G", 1000.0);
+        Account target = new Account(targetKey, "Misho", "M", 500.0);
+
+        accountService.createAccount(target);
+
+        // When attempting transfer from non-existent source
+        // Then should throw AccountNotFoundException
+        assertThrows(AccountNotFoundException.class, () ->
+                accountService.transfer(source, target, 100.0)
+        );
+
+        // And balances should remain unchanged
+        assertEquals(500.0, accountService.getAccount(2).getBalance(), 0.001);
+    }
+
+    @Test
+    void testTransferTargetNotFound() {
+        // Given only source account exists
+        AccountKey sourceKey = AccountKey.valueOf(1);
+        AccountKey targetKey = AccountKey.valueOf(2);
+        Account source = new Account(sourceKey, "Gosho", "G", 1000.0);
+        Account target = new Account(targetKey, "Misho", "M", 500.0);
+
+        accountService.createAccount(source);
+
+        // When attempting transfer to non-existent target
+        // Then should throw AccountNotFoundException
+        assertThrows(AccountNotFoundException.class, () ->
+                accountService.transfer(source, target, 100.0)
+        );
+
+        // And balances should remain unchanged
+        assertEquals(1000.0, accountService.getAccount(1).getBalance(), 0.001);
+    }
+
+    @Test
+    void testTransferSourceNull() {
+        // Given the source account is null
+        AccountKey targetKey = AccountKey.valueOf(2);
+        Account target = new Account(targetKey, "Misho", "M", 500.0);
+        accountService.createAccount(target);
+
+        // When attempting transfer funds
+        // Then should throw InvalidTransferException
+        assertThrows(InvalidTransferException.class, () ->
+                accountService.transfer(null, target, 100.0)
+        );
+
+        // And balances should remain unchanged
+        assertEquals(500.0, accountService.getAccount(2).getBalance(), 0.001);
+    }
+
+    @Test
+    void testTransferTargetNull() {
+        // Given the target account is null
+        AccountKey sourceKey = AccountKey.valueOf(1);
+        Account source = new Account(sourceKey, "Gosho", "G", 1000.0);
+        accountService.createAccount(source);
+
+        // When attempting transfer funds
+        // Then should throw InvalidTransferException
+        assertThrows(InvalidTransferException.class, () ->
+                accountService.transfer(source, null, 100.0)
+        );
+
+        // And balances should remain unchanged
+        assertEquals(1000.0, accountService.getAccount(1).getBalance(), 0.001);
+    }
+
+    @Test
+    void testTransferExactBalance() {
+        // Given source account has exact amount to transfer
+        AccountKey source = AccountKey.valueOf(1);
+        AccountKey target = AccountKey.valueOf(2);
+        Account acc1 = new Account(source, "Gosho", "G", 100.0);
+        Account acc2 = new Account(target, "Misho", "M", 500.0);
+
+        accountService.createAccount(acc1);
+        accountService.createAccount(acc2);
+
+        // When transferring exact balance
+        accountService.transfer(acc1, acc2, 100.0);
+
+        // Then the source should have zero balance and target account's balance should be updated
+        assertEquals(0.0, accountService.getAccount(1).getBalance(), 0.001);
+        assertEquals(600.0, accountService.getAccount(2).getBalance(), 0.001);
     }
 }
