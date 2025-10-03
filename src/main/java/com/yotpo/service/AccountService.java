@@ -1,6 +1,9 @@
 package com.yotpo.service;
 
 import com.yotpo.account.Account;
+import com.yotpo.exception.AccountAlreadyExistsException;
+import com.yotpo.exception.AccountNotFoundException;
+import com.yotpo.exception.InvalidTransferException;
 
 public interface AccountService {
 
@@ -14,7 +17,8 @@ public interface AccountService {
      * Creates a new account
      *
      * @param account account entity to add or update
-     * @throws IllegalArgumentException if account is already present
+     * @throws AccountAlreadyExistsException if account is already present
+     * @throws IllegalArgumentException if account data is invalid
      * */
     void createAccount(Account account);
 
@@ -32,6 +36,8 @@ public interface AccountService {
      * @param source account to transfer money from
      * @param target account to transfer money to
      * @param amount dollar amount to transfer
+     * @throws InvalidTransferException if transfer request data is invalid
+     * @throws AccountNotFoundException if source or target account does not exist
      * */
     void transfer(Account source, Account target, double amount);
 }
