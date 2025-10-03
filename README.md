@@ -108,3 +108,49 @@ ConcurrentHashMap alone is not enough:
 **Optimistic locking:** Good for low contention, poor for banking (high retry cost).
 
 ---
+
+## Task 4: REST API for Money Transfer
+
+### Implementation Overview
+
+Created a REST endpoint to expose the transfer functionality via HTTP, following the contract defined in `AbstractAccountController`.
+
+**Endpoint:** `POST /api/operations/transfer`
+
+**Request Parameters:**
+- `source_id` (long) - ID of the source account
+- `target_id` (long) - ID of the target account
+- `amount` (double) - Amount to transfer (must be positive)
+
+**Response Codes:**
+- `200 OK` - Transfer completed successfully
+- `400 Bad Request` - Missing/invalid parameters or negative/zero amount
+- `404 Not Found` - Source or target account doesn't exist
+- `500 Internal Server Error` - Insufficient balance in source account
+
+### Design Decisions
+
+#### 1. Following the Abstract Controller Contract
+The skeleton project provided `AbstractAccountController` with a method signature returning `ResponseEntity<Void>`.
+While I believe that returning a body would provide better usability of the API in production, I implemented it as-is to:
+- Respect the provided architecture
+- Maintain consistency with project structure
+
+#### 2. Local Exception Handling vs Global Handler
+Exception handling is performed locally in the controller method rather than using a global @ControllerAdvice for the following reasons:
+- Keeps control flow explicit and easy to follow
+- Simplifies unit testing (no MockMvc setup required)
+- Appropriate for single-endpoint service
+
+In production with multiple endpoints, a global handler would reduce duplication.
+
+### Test Coverage
+
+**Unit Tests:** Mock AccountService to test controller logic in isolation
+- All response codes (200, 400, 404, 500)
+- Edge cases (small,large and negative amounts, account problems)
+
+**Integration Tests:** Full HTTP layer with real Spring context
+- End-to-etnd transfers wih balance verification
+- Missing/invalid parameters
+- Multiple sequential transfers
