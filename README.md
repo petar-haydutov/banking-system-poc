@@ -1,3 +1,24 @@
+# Yotpo Banking System - Interview Assignment
+
+This project implements a POC banking system with account management and money transfer capabilities. The implementation progresses through five tasks, each building on the previous one.
+
+## Project Structure
+- **Task 1:** Performance optimization and code review
+- **Task 2:** Single-threaded money transfers
+- **Task 3:** Multi-threaded transfers with concurrency control
+- **Task 4:** REST API endpoint
+- **Task 5:** Database schema and queries
+
+## Running the Application
+```bash
+./mvnw spring-boot:run
+```
+
+## Running Tests
+```bash
+./mvnw test
+```
+
 ## Task 1: Code Review and Performance Optimization
 
 ### Issues Identified and mentioned in PR review:
@@ -151,7 +172,7 @@ In production with multiple endpoints, a global handler would reduce duplication
 - Edge cases (small,large and negative amounts, account problems)
 
 **Integration Tests:** Full HTTP layer with real Spring context
-- End-to-etnd transfers wih balance verification
+- End-to-end transfers with balance verification
 - Missing/invalid parameters
 - Multiple sequential transfers
 ---

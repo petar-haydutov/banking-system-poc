@@ -12,6 +12,10 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.locks.ReentrantLock;
 
+/**
+ * Implementation of AccountService providing thread-safe account operations.
+ * Uses ConcurrentHashMap for O(1) lookups and fine-grained locking for transfers.
+ */
 @Service
 public class AccountServiceImpl implements AccountService {
 
