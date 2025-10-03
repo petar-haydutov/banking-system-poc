@@ -154,3 +154,40 @@ In production with multiple endpoints, a global handler would reduce duplication
 - End-to-etnd transfers wih balance verification
 - Missing/invalid parameters
 - Multiple sequential transfers
+---
+
+## Task 5: Database Schema and Query Design
+
+### Implementation
+
+Created SQL schema for accounts and transfers tables, along with a query to find accounts that have transferred more than $1000 since 2019-01-01.
+
+**Files:**
+- `src/main/resources/sql/data/accounts.sql` - Accounts table schema
+- `src/main/resources/sql/data/transfers.sql` - Transfers table schema
+- `src/main/resources/sql/select.sql` - Query for accounts with total transfers > $1000
+
+### Schema Design
+
+**Accounts Table:**
+Primary key on id, NOT NULL constraints on all fields, check constraint ensuring balance >= 0.
+
+**Transfers Table:**
+Primary key on id, foreign keys to accounts for referential integrity, check constraints for amount > 0 and source_id != target_id, composite index on (source_id, transfer_time).
+
+### Design Decisions
+
+**Composite Index:**
+Created index on (source_id, transfer_time) instead of separate indexes. This single index efficiently serves both the JOIN condition and WHERE filter.
+
+**INNER JOIN:**
+Used INNER JOIN instead of LEFT JOIN to return only accounts that have made transfers.
+
+**Query execution order:**
+FROM/JOIN → WHERE (filter rows) → GROUP BY → HAVING (filter groups) → SELECT → ORDER BY
+
+**Data Integrity:**
+Foreign keys ensure transfers reference existing accounts. Check constraints prevent negative balances, negative amounts, and self-transfers.
+
+**Known Limitation:**
+Consistent with earlier tasks, using DOUBLE for monetary values. Production systems should use DECIMAL for financial precision.
