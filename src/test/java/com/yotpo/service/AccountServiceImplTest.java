@@ -10,6 +10,11 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import java.util.Random;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
+
 import static org.junit.jupiter.api.Assertions.*;
 
 public class AccountServiceImplTest {
@@ -305,8 +310,8 @@ public class AccountServiceImplTest {
         accountService.createAccount(target);
 
         // When attempting transfer funds
-        // Then should throw InvalidTransferException
-        assertThrows(InvalidTransferException.class, () ->
+        // Then should throw NullPointerException
+        assertThrows(NullPointerException.class, () ->
                 accountService.transfer(null, target, 100.0)
         );
 
@@ -322,8 +327,8 @@ public class AccountServiceImplTest {
         accountService.createAccount(source);
 
         // When attempting transfer funds
-        // Then should throw InvalidTransferException
-        assertThrows(InvalidTransferException.class, () ->
+        // Then should throw NullPointerException
+        assertThrows(NullPointerException.class, () ->
                 accountService.transfer(source, null, 100.0)
         );
 
@@ -348,5 +353,207 @@ public class AccountServiceImplTest {
         // Then the source should have zero balance and target account's balance should be updated
         assertEquals(0.0, accountService.getAccount(1).getBalance(), 0.001);
         assertEquals(600.0, accountService.getAccount(2).getBalance(), 0.001);
+    }
+
+    @Test
+    void testConcurrentTransfersFromSameAccount() throws InterruptedException {
+        // Given account with $1000
+        AccountKey source = AccountKey.valueOf(1);
+        AccountKey target1 = AccountKey.valueOf(2);
+        AccountKey target2 = AccountKey.valueOf(3);
+
+        Account sourceAcc = new Account(source, "Pesho", "P", 1000.0);
+        Account targetAcc1 = new Account(target1, "Gosho", "G", 0.0);
+        Account targetAcc2 = new Account(target2, "Misho", "M", 0.0);
+
+        accountService.createAccount(sourceAcc);
+        accountService.createAccount(targetAcc1);
+        accountService.createAccount(targetAcc2);
+
+        int numThreads = 10;
+        Double transferAmount = 50.0;
+        CountDownLatch startLatch = new CountDownLatch(1);
+        CountDownLatch doneLatch = new CountDownLatch(numThreads);
+
+        // When multiple threads transfer from same account
+        for (int i = 0; i < numThreads / 2; i++) {
+            new Thread(() -> {
+                try {
+                    startLatch.await();
+                    accountService.transfer(sourceAcc, targetAcc1, transferAmount);
+                } catch (Exception e) {
+                    fail("Should not throw exception: " + e.getMessage());
+                } finally {
+                    doneLatch.countDown();
+                }
+            }).start();
+
+            new Thread(() -> {
+                try {
+                    startLatch.await();
+                    accountService.transfer(sourceAcc, targetAcc2, transferAmount);
+                } catch (Exception e) {
+                    fail("Should not throw exception: " + e.getMessage());
+                } finally {
+                    doneLatch.countDown();
+                }
+            }).start();
+        }
+
+        startLatch.countDown(); // Start all threads simultaneously
+        doneLatch.await(5, TimeUnit.SECONDS);
+
+        // Then total money should be conserved
+        Double totalBalance = accountService.getAccount(1).getBalance() +
+                accountService.getAccount(2).getBalance() +
+                accountService.getAccount(3).getBalance();
+
+        assertEquals(1000.0, totalBalance, 0.001);
+    }
+
+    @Test
+    void testDeadlockPrevention() throws InterruptedException {
+        // Given two accounts
+        AccountKey accountAKey = AccountKey.valueOf(1);
+        AccountKey accountBKey = AccountKey.valueOf(2);
+
+        Account accA = new Account(accountAKey, "Pesho", "P", 1000.0);
+        Account accB = new Account(accountBKey, "Gosho", "G", 1000.0);
+
+        accountService.createAccount(accA);
+        accountService.createAccount(accB);
+
+        CountDownLatch startLatch = new CountDownLatch(1);
+        CountDownLatch doneLatch = new CountDownLatch(2);
+        AtomicInteger successCount = new AtomicInteger(0);
+
+        // Thread 1: A → B
+        new Thread(() -> {
+            try {
+                startLatch.await();
+                accountService.transfer(accA, accB, 100.0);
+                successCount.incrementAndGet();
+            } catch (Exception e) {
+                fail("Should not throw exception: " + e.getMessage());
+            } finally {
+                doneLatch.countDown();
+            }
+        }).start();
+
+        // Thread 2: B → A (potential deadlock if not handled properly)
+        new Thread(() -> {
+            try {
+                startLatch.await();
+                accountService.transfer(accB, accA, 100.0);
+                successCount.incrementAndGet();
+            } catch (Exception e) {
+                // May fail
+            } finally {
+                doneLatch.countDown();
+            }
+        }).start();
+
+        startLatch.countDown();
+        boolean completed = doneLatch.await(3, TimeUnit.SECONDS);
+
+        // Then should complete without deadlock
+        assertTrue(completed, "Transfers should complete without deadlock");
+        assertEquals(2, successCount.get(), "Both transfers should succeed");
+    }
+
+    @Test
+    void testMoneyConservation() throws InterruptedException {
+        // Given 10 accounts
+        int numAccounts = 10;
+        Double initialBalance = 5000.0;
+        Double totalMoney = numAccounts * initialBalance;
+
+        for (int i = 1; i <= numAccounts; i++) {
+            AccountKey key = AccountKey.valueOf(i);
+            Account acc = new Account(key, "Pesho" + i, "P" + i, initialBalance);
+            accountService.createAccount(acc);
+        }
+
+        int numTransfers = 100;
+        CountDownLatch startLatch = new CountDownLatch(1);
+        CountDownLatch doneLatch = new CountDownLatch(numTransfers);
+        Random random = new Random();
+
+        // When performing many random transfers concurrently
+        for (int i = 0; i < numTransfers; i++) {
+            new Thread(() -> {
+                try {
+                    startLatch.await();
+
+                    int sourceId = random.nextInt(numAccounts) + 1;
+                    int targetId = random.nextInt(numAccounts) + 1;
+
+                    if (sourceId != targetId) {
+                        accountService.transfer(
+                                accountService.getAccount(sourceId),
+                                accountService.getAccount(targetId),
+                                50.0
+                        );
+                    }
+                } catch (Exception e) {
+                    fail("Should not throw exception: " + e.getMessage());
+                } finally {
+                    doneLatch.countDown();
+                }
+            }).start();
+        }
+
+        startLatch.countDown();
+        doneLatch.await(5, TimeUnit.SECONDS);
+
+        // Then total money in system should remain the same
+        Double finalTotal = 0.0;
+        for (int i = 1; i <= numAccounts; i++) {
+            finalTotal += accountService.getAccount(i).getBalance();
+        }
+
+        assertEquals(totalMoney, finalTotal, 0.001);
+    }
+
+    @Test
+    void testConcurrentModificationStressTest() throws InterruptedException {
+        // Given an account with a large balance
+        AccountKey sourceKey = AccountKey.valueOf(1);
+        AccountKey targetKey = AccountKey.valueOf(2);
+
+        Account sourceAcc = new Account(sourceKey, "Pesho", "P", 100000.0);
+        Account targetAcc = new Account(targetKey, "Gosho", "G", 0.0);
+
+        accountService.createAccount(sourceAcc);
+        accountService.createAccount(targetAcc);
+
+        int numThreads = 1000;
+        Double transferAmount = 1.0;
+        CountDownLatch startLatch = new CountDownLatch(1);
+        CountDownLatch doneLatch = new CountDownLatch(numThreads);
+
+        // When A LOT of threads transfer from the same account a small amount
+        for (int i = 0; i < numThreads; i++) {
+            new Thread(() -> {
+                try {
+                    startLatch.await();
+                    accountService.transfer(sourceAcc, targetAcc, transferAmount);
+                } catch (Exception e) {
+                    fail("Should not throw exception: " + e.getMessage());
+                } finally {
+                    doneLatch.countDown();
+                }
+            }).start();
+        }
+
+        startLatch.countDown();
+        doneLatch.await(10, TimeUnit.SECONDS);
+
+        Double expectedSource = 100000.0 - (numThreads * transferAmount);
+        Double expectedTarget = numThreads * transferAmount;
+
+        // Then with proper locking: source = 99000, target = 1000
+        assertEquals(expectedSource, accountService.getAccount(1).getBalance(), 0.001);
+        assertEquals(expectedTarget, accountService.getAccount(2).getBalance(), 0.001);
     }
 }

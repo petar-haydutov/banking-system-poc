@@ -64,3 +64,47 @@ In a production system, this would require:
 - Crash recovery mechanisms
 
 However, per assignment instructions, persistence concerns are explicitly out of scope.
+
+---
+
+## Task 3: Multi-Threaded Transfer Implementation
+
+### Concurrency Challenges
+
+**Race Conditions:**
+Multiple threads reading/writing same account balance can cause lost updates.
+
+**Deadlocks:**
+Thread 1 locks A→B while Thread 2 locks B→A causes circular wait.
+
+### Solution: Fine-Grained Locking with Lock Ordering
+
+**Implementation:**
+- Each account has its own `ReentrantLock` in `ConcurrentHashMap<AccountKey, ReentrantLock>`
+- Locks always acquired in deterministic order based on accountId
+- Prevents deadlock: both A→B and B→A transfer threads lock account 1 first, then account 2
+
+**Benefits:**
+- Independent transfers run in parallel (A→B doesn't block C→D)
+- No deadlocks due to consistent ordering
+- Scales with number of account pairs
+
+**Notes:**
+
+ConcurrentHashMap alone is not enough:
+- Protects map structure operations (get/put)
+- Does NOT protect Account object mutations
+- Need account-level locks for balance updates
+
+**Test Coverage:**
+- Concurrent transfers from same account (race condition test)
+- Bidirectional transfers A→B and B→A (deadlock prevention)
+- Random transfers between multiple accounts (money conservation)
+- 1000+ concurrent threads (stress test)
+
+### Alternatives Considered
+**Synchronized method:** Simpler but only one transfer globally (poor performance and scalability).
+
+**Optimistic locking:** Good for low contention, poor for banking (high retry cost).
+
+---
